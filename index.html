@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Firebase RTD Pro - Switch Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .status-dot {
+            height: 10px; width: 10px; border-radius: 50%; display: inline-block;
+        }
+        .pulse-emerald {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: pulse-emerald 2s infinite;
+        }
+        @keyframes pulse-emerald {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        .sensor-chart-container { height: 160px; width: 100%; }
+        #logConsole::-webkit-scrollbar { width: 4px; }
+        #logConsole::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 8px; cursor: pointer;
+            background: #e2e8f0; border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 20px; width: 20px; border-radius: 50%;
+            background: #6366f1; cursor: pointer;
+            -webkit-appearance: none; margin-top: -6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-6">
+        <!-- Header -->
+        <header class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-indigo-700 flex items-center gap-3 tracking-tight">
+                    <i class="fas fa-database"></i> IOT RTD STRUCTURED
+                </h1>
+                <p class="text-slate-400 text-sm">Update: Menggunakan Switch (0/1) & Event Listeners</p>
+            </div>
+            <div class="flex gap-2">
+                <button id="btnShowDocs" class="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-xl shadow-sm text-xs font-bold uppercase hover:bg-indigo-200 transition">
+                    <i class="fas fa-book"></i> Struktur JSON
+                </button>
+                <div id="connectionStatus" class="flex items-center gap-3 px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 text-xs font-bold uppercase">
+                    <span class="status-dot bg-red-500" id="statusDot"></span>
+                    <span id="statusText">Terputus</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Sidebar -->
+            <div class="lg:col-span-4 space-y-6">
+                <!-- Config -->
+                <div class="glass-card rounded-2xl shadow-sm p-5 border border-slate-200">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase mb-4 tracking-widest flex items-center justify-between">
+                        Firebase Config
+                        <i class="fas fa-plug text-slate-300"></i>
+                    </h2>
+                    <div class="space-y-3">
+                        <input type="password" id="apiKey" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-400" placeholder="API Key">
+                        <input type="text" id="dbUrl" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-400" placeholder="Database URL">
+                        <input type="text" id="nodePath" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-400" placeholder="Path (iot/test)">
+                        <button id="btnConnect" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl transition text-xs shadow-lg shadow-indigo-100">
+                            Hubungkan Database
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Builder Form -->
+                <div class="glass-card rounded-2xl shadow-sm p-5 border border-slate-200" id="builderCard">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xs font-bold text-emerald-600 uppercase tracking-widest" id="builderTitle">Builder Parameter</h2>
+                        <button id="btnResetForm" class="hidden text-[10px] text-rose-500 font-bold uppercase hover:underline">Batal Edit</button>
+                    </div>
+                    <div class="space-y-3">
+                        <input type="text" id="newKey" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none" placeholder="Nama Key (misal: suhu)">
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="newType" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none">
+                                <option value="sensor">Sensor (Telemetri)</option>
+                                <option value="dimmer">Dimmer (Analog)</option>
+                                <option value="switch">Switch (Digital 0/1)</option>
+                            </select>
+                            <input type="text" id="newUnit" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none" placeholder="Satuan (°C, %)">
+                        </div>
+                        <input type="number" id="newThreshold" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none" placeholder="Batas Atas (Default: 100/1024)">
+                        <button id="btnAddPanel" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl transition text-xs">
+                            Simpan Struktur
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Simulator -->
+                <div id="autoSendSection" class="glass-card rounded-2xl shadow-sm p-5 border border-amber-100 opacity-50 pointer-events-none">
+                    <h2 class="text-xs font-bold text-amber-600 uppercase mb-4 tracking-widest">Global Simulator</h2>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-400 block mb-1">MIN</label>
+                                <input type="number" id="simMin" class="w-full p-2 bg-slate-50 border rounded-lg text-xs" value="0">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-400 block mb-1">MAX</label>
+                                <input type="number" id="simMax" class="w-full p-2 bg-slate-50 border rounded-lg text-xs" value="100">
+                            </div>
+                        </div>
+                        <input type="number" id="autoInterval" class="w-full p-2 bg-slate-50 border rounded-lg text-xs" value="2000">
+                        <button id="btnToggleAuto" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition">
+                            Mulai Simulasi
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Panel -->
+            <div class="lg:col-span-8 space-y-6">
+                <!-- Telemetry Section -->
+                <div>
+                    <h2 class="font-bold text-slate-600 mb-4 flex items-center gap-2 italic uppercase text-sm tracking-widest">
+                        <i class="fas fa-chart-area text-indigo-500"></i> Monitoring Telemetri
+                    </h2>
+                    <div id="sensorGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="col-span-full py-20 text-center glass-card rounded-2xl border-2 border-dashed border-slate-200 text-slate-400">
+                            Menunggu sinkronisasi data terstruktur...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Control Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h2 class="font-bold text-slate-600 mb-4 flex items-center gap-2 italic text-xs uppercase tracking-widest">
+                            <i class="fas fa-toggle-on text-indigo-500"></i> Switch Digital (0/1)
+                        </h2>
+                        <div id="controlGrid" class="grid grid-cols-2 gap-3"></div>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-slate-600 mb-4 flex items-center gap-2 italic text-xs uppercase tracking-widest">
+                            <i class="fas fa-sliders text-indigo-500"></i> Analog Dimmer
+                        </h2>
+                        <div id="dimmerGrid" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Console -->
+                <div class="glass-card rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-2 border-b flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <span>Terminal Log</span>
+                        <button id="btnClearLog" class="text-indigo-500 font-bold hover:underline">Hapus Log</button>
+                    </div>
+                    <div id="logConsole" class="bg-slate-900 p-4 h-32 overflow-y-auto font-mono text-[10px] text-emerald-400 leading-relaxed">
+                        <div>> Menunggu instruksi...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dokumentasi -->
+    <div id="docsModal" class="modal flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-slide-up">
+            <div class="p-6 bg-indigo-600 text-white flex justify-between items-center">
+                <h2 class="text-xl font-bold italic"><i class="fas fa-book-open mr-2"></i> Panduan Struktur JSON</h2>
+                <button id="btnCloseDocs" class="text-white hover:text-indigo-200"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[70vh]">
+                <p class="text-sm text-slate-600 mb-4">Agar data Anda terbaca oleh web ini, format JSON di bawah node utama Anda harus seperti ini:</p>
+                
+                <div class="space-y-4">
+                    <!-- Switch -->
+                    <div class="bg-slate-50 p-4 rounded-xl border">
+                        <h3 class="text-xs font-black text-indigo-500 uppercase mb-2">1. Switch Digital (0 atau 1)</h3>
+                        <pre class="bg-slate-900 text-emerald-400 p-3 rounded-lg text-[11px] overflow-x-auto">
+"lampu_teras": {
+  "tipe": "switch",
+  "value": 1
+}</pre>
+                        <p class="text-[10px] text-slate-500 mt-1">* Gunakan 0 untuk OFF dan 1 untuk ON.</p>
+                    </div>
+
+                    <!-- Dimmer -->
+                    <div class="bg-slate-50 p-4 rounded-xl border">
+                        <h3 class="text-xs font-black text-indigo-500 uppercase mb-2">2. Dimmer Analog (Slider)</h3>
+                        <pre class="bg-slate-900 text-emerald-400 p-3 rounded-lg text-[11px] overflow-x-auto">
+"kipas_angin": {
+  "tipe": "dimmer",
+  "value": 512,
+  "batas_atas": 1024,
+  "satuan": "RPM"
+}</pre>
+                    </div>
+
+                    <!-- Sensor -->
+                    <div class="bg-slate-50 p-4 rounded-xl border">
+                        <h3 class="text-xs font-black text-indigo-500 uppercase mb-2">3. Sensor Telemetri (Grafik)</h3>
+                        <pre class="bg-slate-900 text-emerald-400 p-3 rounded-lg text-[11px] overflow-x-auto">
+"suhu_ruang": {
+  "tipe": "sensor",
+  "value": 28.5,
+  "batas_atas": 100,
+  "satuan": "°C"
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast UI -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 transition-all duration-500 pointer-events-none z-50">
+        <div class="bg-white text-slate-800 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border-b-4 border-indigo-500">
+            <div id="toastIconContainer" class="p-2 bg-indigo-50 rounded-full">
+                <i id="toastIcon" class="fas fa-info text-indigo-500"></i>
+            </div>
+            <p id="toastMsg" class="text-xs font-bold"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp, getApps, deleteApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+        import { getDatabase, ref, onValue, update, remove, set } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
+
+        let db = null;
+        let currentPath = "";
+        let autoIntervalId = null;
+        let unsubscribe = null;
+        let currentData = {};
+        let charts = {}; 
+        let editModeKey = null;
+
+        const el = {
+            apiKey: document.getElementById('apiKey'),
+            dbUrl: document.getElementById('dbUrl'),
+            nodePath: document.getElementById('nodePath'),
+            btnConnect: document.getElementById('btnConnect'),
+            sensorGrid: document.getElementById('sensorGrid'),
+            controlGrid: document.getElementById('controlGrid'),
+            dimmerGrid: document.getElementById('dimmerGrid'),
+            logConsole: document.getElementById('logConsole'),
+            statusDot: document.getElementById('statusDot'),
+            statusText: document.getElementById('statusText'),
+            newKey: document.getElementById('newKey'),
+            newType: document.getElementById('newType'),
+            newUnit: document.getElementById('newUnit'),
+            newThreshold: document.getElementById('newThreshold'),
+            btnAddPanel: document.getElementById('btnAddPanel'),
+            autoSendSection: document.getElementById('autoSendSection'),
+            btnToggleAuto: document.getElementById('btnToggleAuto'),
+            autoInterval: document.getElementById('autoInterval'),
+            simMin: document.getElementById('simMin'),
+            simMax: document.getElementById('simMax'),
+            btnClearLog: document.getElementById('btnClearLog'),
+            builderTitle: document.getElementById('builderTitle'),
+            btnResetForm: document.getElementById('btnResetForm'),
+            docsModal: document.getElementById('docsModal'),
+            btnShowDocs: document.getElementById('btnShowDocs'),
+            btnCloseDocs: document.getElementById('btnCloseDocs')
+        };
+
+        // --- Utils ---
+        function formatName(key) {
+            return key.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        }
+
+        // --- Dashboard Action Listeners (Event Delegation) ---
+        function attachDashboardListeners() {
+            const allGrids = [el.sensorGrid, el.controlGrid, el.dimmerGrid];
+            
+            allGrids.forEach(grid => {
+                grid.addEventListener('click', async (e) => {
+                    const deleteBtn = e.target.closest('.btn-delete-action');
+                    const editBtn = e.target.closest('.btn-edit-action');
+                    
+                    if (deleteBtn) {
+                        const key = deleteBtn.dataset.key;
+                        if (confirm(`Hapus parameter ${key}?`)) {
+                            try {
+                                if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+                                await remove(ref(db, `${currentPath}/${key}`));
+                                addLog(`Dihapus: ${key}`, 'warn');
+                            } catch (err) { addLog(`Gagal Hapus: ${err.message}`, 'error'); }
+                        }
+                    }
+
+                    if (editBtn) {
+                        const key = editBtn.dataset.key;
+                        const item = currentData[key];
+                        if (item) {
+                            el.newKey.value = key;
+                            el.newKey.readOnly = true;
+                            el.newKey.classList.add('bg-slate-200');
+                            el.newType.value = item.tipe || "sensor";
+                            el.newUnit.value = item.satuan || "";
+                            el.newThreshold.value = item.batas_atas || "";
+                            
+                            editModeKey = key;
+                            el.builderTitle.innerText = "Edit Komponen";
+                            el.btnResetForm.classList.remove('hidden');
+                            el.btnAddPanel.innerText = "Perbarui Struktur";
+                            el.btnAddPanel.classList.replace('bg-emerald-500', 'bg-indigo-500');
+                            window.scrollTo({ top: document.getElementById('builderCard').offsetTop, behavior: 'smooth' });
+                        }
+                    }
+                });
+            });
+        }
+
+        function resetForm() {
+            editModeKey = null;
+            el.newKey.value = "";
+            el.newKey.readOnly = false;
+            el.newKey.classList.remove('bg-slate-200');
+            el.newUnit.value = "";
+            el.newThreshold.value = "";
+            el.builderTitle.innerText = "Builder Parameter";
+            el.btnResetForm.classList.add('hidden');
+            el.btnAddPanel.innerText = "Simpan Struktur";
+            el.btnAddPanel.classList.replace('bg-indigo-500', 'bg-emerald-500');
+        }
+        el.btnResetForm.onclick = resetForm;
+
+        // --- Firebase Core ---
+        async function connect() {
+            const config = {
+                apiKey: el.apiKey.value.trim(),
+                databaseURL: el.dbUrl.value.trim(),
+                projectId: el.dbUrl.value.split('//')[1]?.split('.')[0] || "project"
+            };
+            currentPath = el.nodePath.value.trim();
+
+            if (!config.apiKey || !config.databaseURL || !currentPath) return showToast("Lengkapi data Firebase!", true);
+
+            try {
+                const apps = getApps();
+                if (apps.length > 0) await deleteApp(apps[0]);
+                if (unsubscribe) unsubscribe();
+
+                const app = initializeApp(config);
+                db = getDatabase(app);
+
+                addLog(`Sinkronisasi aktif: /${currentPath}`, 'info');
+                
+                unsubscribe = onValue(ref(db, currentPath), (snapshot) => {
+                    const data = snapshot.val() || {};
+                    currentData = data;
+                    renderDashboard(data);
+                    el.statusDot.className = "status-dot bg-emerald-500 pulse-emerald";
+                    el.statusText.innerText = "Live Connected";
+                    el.autoSendSection.classList.remove('opacity-50', 'pointer-events-none');
+                }, (err) => {
+                    addLog(`Error: ${err.message}`, 'error');
+                });
+
+                localStorage.setItem('iot_rtd_pro_structured_config_v2', JSON.stringify({...config, path: currentPath}));
+                showToast("Terhubung!");
+            } catch (e) { addLog(`Error: ${e.message}`, 'error'); }
+        }
+
+        function renderDashboard(data) {
+            const keys = Object.keys(data).sort();
+            const sensorKeys = keys.filter(k => data[k].tipe === 'sensor');
+            const dimmerKeys = keys.filter(k => data[k].tipe === 'dimmer');
+            const switchKeys = keys.filter(k => data[k].tipe === 'switch' || data[k].tipe === 'saklar');
+
+            if (keys.length === 0) {
+                el.sensorGrid.innerHTML = `<div class="col-span-full py-20 text-slate-400 italic text-center">Data kosong. Tambahkan melalui Builder atau kirim JSON sesuai panduan.</div>`;
+                el.controlGrid.innerHTML = "";
+                el.dimmerGrid.innerHTML = "";
+                return;
+            }
+
+            updateSensors(sensorKeys, data);
+            updateSwitches(switchKeys, data);
+            updateDimmers(dimmerKeys, data);
+        }
+
+        function updateSensors(keys, data) {
+            const container = el.sensorGrid;
+            const existing = container.querySelectorAll('.sensor-card');
+            existing.forEach(c => { if (!keys.includes(c.dataset.key)) c.remove(); });
+
+            keys.forEach(key => {
+                let card = container.querySelector(`[data-key="${key}"]`);
+                const item = data[key];
+                const isAlert = item.batas_atas && item.value > item.batas_atas;
+
+                if (!card) {
+                    card = document.createElement('div');
+                    card.className = "sensor-card glass-card p-5 rounded-2xl shadow-sm border transition-all duration-300 relative group";
+                    card.dataset.key = key;
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate pr-12">${formatName(key)}</span>
+                            <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                <button class="btn-edit-action text-slate-400 hover:text-indigo-500" data-key="${key}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-delete-action text-slate-400 hover:text-rose-500" data-key="${key}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div class="flex items-baseline gap-1 mb-2">
+                            <h3 class="text-4xl font-black text-slate-800 value-display">${item.value ?? 0}</h3>
+                            <span class="text-lg font-bold text-slate-400">${item.satuan || ''}</span>
+                            <span class="text-[9px] alert-label ${isAlert ? '' : 'hidden'} bg-rose-500 text-white px-2 py-0.5 rounded-full ml-auto font-black uppercase">Alarm</span>
+                        </div>
+                        <div class="sensor-chart-container"><canvas id="chart-${key}"></canvas></div>
+                    `;
+                    container.appendChild(card);
+                    initChart(key);
+                }
+
+                card.querySelector('.value-display').innerText = item.value ?? 0;
+                const al = card.querySelector('.alert-label');
+                if (isAlert) { card.classList.add('border-rose-400', 'bg-rose-50'); al.classList.remove('hidden'); }
+                else { card.classList.remove('border-rose-400', 'bg-rose-50'); al.classList.add('hidden'); }
+                updateChart(key, item.value ?? 0);
+            });
+        }
+
+        function updateSwitches(keys, data) {
+            el.controlGrid.innerHTML = "";
+            keys.forEach(key => {
+                const item = data[key];
+                // Menganggap 1 atau true sebagai ON
+                const val = (item.value == 1 || item.value === true);
+                const card = document.createElement('div');
+                card.className = `glass-card p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 relative group transition-all cursor-pointer ${val ? 'bg-indigo-600 border-indigo-600' : 'bg-white'}`;
+                card.innerHTML = `
+                    <div class="absolute top-1 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                        <button class="btn-edit-action text-[10px] text-slate-300 hover:text-white" data-key="${key}"><i class="fas fa-edit"></i></button>
+                        <button class="btn-delete-action text-[10px] text-slate-300 hover:text-white" data-key="${key}"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div class="text-xl ${val ? 'text-white' : 'text-slate-400'} pointer-events-none"><i class="fas ${val ? 'fa-bolt' : 'fa-power-off'}"></i></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest ${val ? 'text-indigo-100' : 'text-slate-500'} text-center pointer-events-none">${formatName(key)}</span>
+                    <span class="text-[8px] font-bold ${val ? 'text-indigo-200' : 'text-slate-400'}">${val ? 'VALUE: 1' : 'VALUE: 0'}</span>
+                `;
+                card.onclick = (e) => { 
+                    if(!e.target.closest('button')) updateStructuredData(key, { value: val ? 0 : 1 }); 
+                };
+                el.controlGrid.appendChild(card);
+            });
+        }
+
+        function updateDimmers(keys, data) {
+            el.dimmerGrid.innerHTML = "";
+            keys.forEach(key => {
+                const item = data[key];
+                const max = item.batas_atas || 1024;
+                const card = document.createElement('div');
+                card.className = "glass-card p-4 rounded-2xl border bg-white group relative";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${formatName(key)}</span>
+                        <div class="flex items-center gap-3">
+                             <div class="opacity-0 group-hover:opacity-100 transition flex gap-2 mr-2">
+                                <button class="btn-edit-action text-[10px] text-slate-300 hover:text-indigo-500" data-key="${key}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-delete-action text-[10px] text-slate-300 hover:text-rose-500" data-key="${key}"><i class="fas fa-trash"></i></button>
+                            </div>
+                            <span class="text-xs font-bold text-indigo-600">${item.value} <small class="text-[9px] opacity-50">/ ${max}</small></span>
+                        </div>
+                    </div>
+                    <input type="range" min="0" max="${max}" value="${item.value}" class="dimmer-input" data-key="${key}">
+                `;
+                card.querySelector('input').oninput = (e) => updateStructuredData(key, { value: parseInt(e.target.value) }, true);
+                el.dimmerGrid.appendChild(card);
+            });
+        }
+
+        // --- Charts Helper ---
+        function initChart(key) {
+            const ctx = document.getElementById(`chart-${key}`).getContext('2d');
+            charts[key] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(25).fill(''),
+                    datasets: [{
+                        data: Array(25).fill(null),
+                        borderColor: '#6366f1',
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        pointBackgroundColor: '#fff',
+                        tension: 0.3,
+                        fill: true,
+                        backgroundColor: 'rgba(99, 102, 241, 0.05)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        x: { display: false },
+                        y: { display: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 8 }, maxTicksLimit: 4 } }
+                    }
+                }
+            });
+        }
+
+        function updateChart(key, val) {
+            const chart = charts[key];
+            if (!chart) return;
+            chart.data.datasets[0].data.push(val);
+            chart.data.datasets[0].data.shift();
+            chart.update('none');
+        }
+
+        // --- Data Operations ---
+        async function updateStructuredData(key, payload, silent = false) {
+            if (!db) return;
+            try {
+                await update(ref(db, `${currentPath}/${key}`), payload);
+                if (!silent) addLog(`Update ${key}: ${JSON.stringify(payload)}`, 'success');
+            } catch (e) { addLog(`Error: ${e.message}`, 'error'); }
+        }
+
+        el.btnAddPanel.onclick = async () => {
+            const key = el.newKey.value.trim().replace(/\s+/g, '_').toLowerCase();
+            const tipe = el.newType.value;
+            const satuan = el.newUnit.value.trim();
+            const batas_atas = parseInt(el.newThreshold.value) || (tipe === 'dimmer' ? 1024 : 100);
+
+            if (!key) return showToast("Nama Key wajib diisi!", true);
+
+            const structuredItem = {
+                tipe: tipe,
+                satuan: satuan,
+                batas_atas: batas_atas,
+                value: editModeKey ? currentData[editModeKey].value : 0
+            };
+
+            try {
+                await set(ref(db, `${currentPath}/${key}`), structuredItem);
+                addLog(`${editModeKey ? 'Perbarui' : 'Simpan'} struktur: ${key}`, 'info');
+                resetForm();
+                showToast("Berhasil disimpan!");
+            } catch (e) { addLog(`Gagal Simpan: ${e.message}`, 'error'); }
+        };
+
+        // --- Event Handlers & Modal ---
+        el.btnConnect.onclick = connect;
+        el.btnShowDocs.onclick = () => el.docsModal.style.display = 'flex';
+        el.btnCloseDocs.onclick = () => el.docsModal.style.display = 'none';
+        window.onclick = (e) => { if (e.target == el.docsModal) el.docsModal.style.display = 'none'; };
+
+        el.btnToggleAuto.onclick = () => {
+            if (autoIntervalId) {
+                clearInterval(autoIntervalId); autoIntervalId = null;
+                el.btnToggleAuto.innerText = "Mulai Simulasi";
+                el.btnToggleAuto.className = "w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs";
+            } else {
+                const interval = parseInt(el.autoInterval.value) || 2000;
+                const min = parseInt(el.simMin.value);
+                const max = parseInt(el.simMax.value);
+                el.btnToggleAuto.innerText = "Berhenti Simulasi";
+                el.btnToggleAuto.className = "w-full bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs";
+                autoIntervalId = setInterval(() => {
+                    Object.keys(currentData).forEach(k => {
+                        const item = currentData[k];
+                        if (item.tipe === 'sensor' || item.tipe === 'dimmer') {
+                            const rangeMax = Math.min(max, item.batas_atas || max);
+                            const newVal = Math.floor(Math.random() * (rangeMax - min + 1)) + min;
+                            updateStructuredData(k, { value: newVal }, true);
+                        }
+                    });
+                }, interval);
+            }
+        };
+
+        function addLog(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            let color = 'text-slate-400';
+            if (type === 'success') color = 'text-emerald-400';
+            if (type === 'error') color = 'text-rose-400';
+            if (type === 'warn') color = 'text-amber-400';
+            div.className = color;
+            div.innerHTML = `<span class="opacity-40">[${time}]</span> ${msg}`;
+            el.logConsole.appendChild(div);
+            el.logConsole.scrollTop = el.logConsole.scrollHeight;
+        }
+
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            document.getElementById('toastIcon').className = isError ? 'fas fa-times text-rose-500' : 'fas fa-check text-indigo-500';
+            t.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        el.btnClearLog.onclick = () => el.logConsole.innerHTML = "<div>> Log dibersihkan.</div>";
+
+        // Preload
+        const saved = JSON.parse(localStorage.getItem('iot_rtd_pro_structured_config_v2') || '{}');
+        if (saved.apiKey) {
+            el.apiKey.value = saved.apiKey;
+            el.dbUrl.value = saved.databaseURL;
+            el.nodePath.value = saved.path || "iot/test";
+        }
+
+        // Start Listeners
+        attachDashboardListeners();
+    </script>
+</body>
+</html>
