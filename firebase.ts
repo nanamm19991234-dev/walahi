@@ -182,4 +182,60 @@ namespace firebase {
 
         return false
     }
+
+    //============================
+    // SET DATA (ANY VALUE TO PATH)
+    //============================
+    //% subcategory="Firebase"
+    //% block="Set Data|path %path|value %value"
+    export function setData(path: string, value: string) {
+
+        uploadSuccess = false
+        if (!esp8266.isWifiConnected()) return
+        if (serverHost == "") return
+
+        let port = useSSL ? 443 : 80
+        let proto = useSSL ? "SSL" : "TCP"
+
+        if (!esp8266.sendCommand(
+            "AT+CIPSTART=\"" + proto + "\",\"" + serverHost + "\"," + port,
+            "OK",
+            5000
+        )) return
+
+        // Format path for Firebase REST API
+        let fullPath = serverPath + "/" + path;
+        while (fullPath.indexOf("//") >= 0) {
+            fullPath = fullPath.replace("//", "/");
+        }
+        
+        let url = fullPath + ".json"
+
+        // Kita gunakan PUT untuk replace, atau PATCH untuk update
+        // HTTP PUT (REST API URL Firebase)
+        let payload = ""
+        // Cek jika number/boolean (jangan pakai quote) atau string (pakai quote)
+        if (value == "true" || value == "false" || !isNaN(Number(value))) {
+             payload = value;
+        } else {
+             payload = "\"" + value + "\"";
+        }
+
+        let request = "PUT " + url + " HTTP/1.1\r\n"
+        request += "Host: " + serverHost + "\r\n"
+        request += "Content-Type: application/json\r\n"
+        request += "Content-Length: " + payload.length + "\r\n"
+        request += "Connection: close\r\n\r\n"
+        request += payload
+
+        esp8266.sendCommand("AT+CIPSEND=" + request.length)
+        esp8266.sendCommand(request)
+
+        if (esp8266.getResponse("SEND OK", 3000) == "") return
+
+        basic.pause(500)
+        esp8266.sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+        uploadSuccess = true
+    }
 }
