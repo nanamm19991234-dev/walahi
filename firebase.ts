@@ -132,10 +132,10 @@ namespace firebase {
     //============================
     //% subcategory="Firebase"
     //% block="Get Data %path"
-    export function getData(path: string): boolean {
+    export function getData(path: string): number {
 
-        if (!esp8266.isWifiConnected()) return false
-        if (serverHost == "") return false
+        if (!esp8266.isWifiConnected()) return -1
+        if (serverHost == "") return -1
 
         let port = useSSL ? 443 : 80
         let proto = useSSL ? "SSL" : "TCP"
@@ -144,7 +144,7 @@ namespace firebase {
             "AT+CIPSTART=\"" + proto + "\",\"" + serverHost + "\"," + port,
             "OK",
             5000
-        )) return false
+        )) return -1
 
         // Format path for Firebase REST API
         let fullPath = serverPath + "/" + path;
@@ -167,8 +167,8 @@ namespace firebase {
         esp8266.sendCommand("AT+CIPCLOSE", "OK", 1000)
 
         // Parse Firebase true/false responses
-        if (response.indexOf("true") >= 0) return true
-        if (response.indexOf("false") >= 0) return false
+        if (response.indexOf("true") >= 0) return 1
+        if (response.indexOf("false") >= 0) return 0
         
         // Fallback for simple 1 or 0 (might collide with HTTP headers if not careful)
         let lines = response.split("\n")
@@ -177,10 +177,10 @@ namespace firebase {
             lastLine = lines[lines.length - 2] ? lines[lines.length - 2].trim() : ""
         }
         
-        if (lastLine == "1" || response.indexOf("\"1\"") >= 0) return true
-        if (lastLine == "0" || response.indexOf("\"0\"") >= 0) return false
+        if (lastLine == "1" || response.indexOf("\"1\"") >= 0) return 1
+        if (lastLine == "0" || response.indexOf("\"0\"") >= 0) return 0
 
-        return false
+        return -1
     }
 
     //============================
